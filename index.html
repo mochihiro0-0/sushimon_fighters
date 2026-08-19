@@ -42,6 +42,7 @@ canvas{display:block;width:100%;aspect-ratio:16/9;image-rendering:pixelated;back
 .specialLine{display:inline-block;margin-top:3px;padding:2px 5px;border:1px solid #ffd76b66;border-radius:5px;color:#ffe59a}
 .throwLine{display:inline-block;margin-top:3px;padding:2px 5px;border:1px solid #8de8ff66;border-radius:5px;color:#bdefff}
 .ultraLine{display:inline-block;margin-top:3px;padding:2px 5px;border:1px solid #ff8a7a66;border-radius:5px;color:#ffd0c8;background:#3a1010}
+.autoComboLine{display:inline-block;margin-top:3px;padding:2px 5px;border:1px solid #8bf0ff66;border-radius:5px;color:#c8f8ff;background:#0b2930}
 .footer{font-size:10px;color:#aaa;margin-top:6px;text-align:center}
 @media(max-width:720px){
   .cards{grid-template-columns:repeat(3,1fr)}
@@ -84,7 +85,8 @@ canvas{display:block;width:100%;aspect-ratio:16/9;image-rendering:pixelated;back
       <b>1P vs CPU:</b> P1はキーボードまたはコントローラーで操作できます。<br>
       <b>2P対戦 P1:</b> 🎮 コントローラー専用 — 左スティック/D-Pad 移動・ジャンプ・ガード / □・△・○・×・R1 攻撃 / <b>R2 投げ</b> / <b>L1 必殺技</b> / <b>L2 超必殺技</b><br>
       <b>2P対戦 P2:</b> ← → 移動 / ↑ ジャンプ / ↓ ガード / Z・X・C・V・B 攻撃 / <b>Space 投げ</b> / <b>Q 必殺技</b> / <b>E 超必殺技</b><br>
-      ゲージは最大200%。100%で必殺技、200%で超必殺技が発動できます。超必殺技はキャラごとの専用カットイン付きです。
+      ゲージは最大200%。100%で必殺技、200%で超必殺技が発動できます。超必殺技はキャラごとの専用カットイン付きです。<br>
+      <b>NEW:</b> キャラクターごとの2キー同時入力で、5段のオートコンボが自動で最後までつながります。
     </div>
   </section>
 
@@ -257,6 +259,20 @@ const CONTROLS=[
   {left:"KeyA",right:"KeyD",jump:"KeyW",guard:"KeyS",attacks:["KeyF","KeyG","KeyH","KeyJ","KeyK"],special:"KeyL",ultra:"KeyO"}
 ];
 const THROW_KEYS=["Space","Enter"];
+
+// ===== Character-specific simultaneous-input auto combos =====
+// The first four hits use reduced knockback so the chain stays connected.
+// The final hit restores stronger knockback as a finisher.
+const AUTO_COMBOS={
+  takoro:{label:"↑ + ←/→",pairs:[["ArrowUp","ArrowLeft"],["ArrowUp","ArrowRight"]],sequence:[2,0,2,1,4]},
+  ikai:{label:"↓ + ←/→",pairs:[["ArrowDown","ArrowLeft"],["ArrowDown","ArrowRight"]],sequence:[1,1,2,1,2]},
+  maguro:{label:"Z + X",pairs:[["KeyZ","KeyX"]],sequence:[1,0,1,3,4]},
+  ebifry:{label:"X + C",pairs:[["KeyX","KeyC"]],sequence:[1,3,1,2,3]},
+  etabyi:{label:"Q + Z",pairs:[["KeyQ","KeyZ"]],sequence:[0,1,2,3,4]},
+  ikuratch:{label:"E + Z",pairs:[["KeyE","KeyZ"]],sequence:[0,1,0,4,1]},
+  tekka:{label:"Q + E",pairs:[["KeyQ","KeyE"]],sequence:[0,1,3,0,4]},
+  kabuto:{label:"Z + C",pairs:[["KeyZ","KeyC"]],sequence:[0,1,2,3,4]}
+};
 
 // 2P対戦ではP1の旧キーボード操作一式をP2へ移します。
 // 1P vs CPUでは従来どおりP1がそのキーボード操作を使えます。
@@ -521,8 +537,9 @@ function playSpecialSE(key, ultra=false){
 
 addEventListener("keydown",e=>{
   if(KEYLIST.includes(e.code))e.preventDefault();
-  if(!keys[e.code])onPress(e.code);
+  const firstPress=!keys[e.code];
   keys[e.code]=true;
+  if(firstPress)onPress(e.code);
 });
 addEventListener("keyup",e=>keys[e.code]=false);
 
@@ -532,7 +549,8 @@ function Fighter(slot,key,x,facing,cpu=false){
     slot,key,c,x,y:GROUND-45,vx:0,vy:0,w:57,h:45,facing,
     hp:100,meter:0,guard:false,onGround:true,attack:null,attackFrame:0,
     hitDone:false,hitCooldown:0,hitstun:0,invuln:0,flash:0,cpu,cpuThink:0,ko:false,
-    combo:0,comboTimer:0,bestCombo:0,specialUsed:0,ultraUsed:0,speedBuff:0,ultraBuff:0,throwSuccess:0,poisonTimer:0,poisonTick:0,poisonDamage:0,poisonOwner:null
+    combo:0,comboTimer:0,bestCombo:0,specialUsed:0,ultraUsed:0,speedBuff:0,ultraBuff:0,throwSuccess:0,poisonTimer:0,poisonTick:0,poisonDamage:0,poisonOwner:null,
+    autoCombo:null,autoComboFlash:0
   };
 }
 async function startGame(){
@@ -592,25 +610,96 @@ function updateMoveBox(){
     f.c.moves.map((m,i)=>`${ctrl[i]}：${m.name}`).join("<br>")+
     `<br><span class="throwLine">${throwKey}：◆ ${THROWS[f.key].name}</span>`+
     `<br><span class="specialLine">${specialKey}：★ ${f.c.special.name}</span>`+
-    `<br><span class="ultraLine">${ultraKey}：★★ ${ULTRAS[f.key].name}</span>`;
+    `<br><span class="ultraLine">${ultraKey}：★★ ${ULTRAS[f.key].name}</span>`+
+    `<br><span class="autoComboLine">${AUTO_COMBOS[f.key].label}：⚡ オートコンボ</span>`;
   if(mode==="2p"){
     document.getElementById("p1Moves").innerHTML=list(fighters[0],padKeys,"L1","L2","R2")+`<br><b>🎮 P1はコントローラー専用</b>`;
     document.getElementById("p2Moves").innerHTML=list(fighters[1],normalKeys1,"Q","E","Space")+`<br><b>⌨ P2は旧P1キーボード操作</b>`;
-    document.querySelector(".hudHelp").textContent="2P対戦　P1=🎮 左スティック/D-Pad・□△○×R1・R2・L1・L2　P2=←→↑↓・Z/X/C/V/B・Space・Q・E";
+    document.querySelector(".hudHelp").textContent="2P対戦　P1=🎮 / P2=キーボード　キャラ別2キー同時押しでオートコンボ";
   }else{
     document.getElementById("p1Moves").innerHTML=list(fighters[0],normalKeys1,"Q","E","Space")+
       `<br><span class="throwLine">🎮 R2：投げ</span> <span class="specialLine">L1：必殺技</span> <span class="ultraLine">L2：超必殺技</span><br>🎮 攻撃：□ / △ / ○ / × / R1`;
     document.getElementById("p2Moves").innerHTML=list(fighters[1],["CPU","CPU","CPU","CPU","CPU"],"CPU","CPU","CPU");
-    document.querySelector(".hudHelp").textContent="1P vs CPU　P1=キーボード（←→↑↓・Z/X/C/V/B・Space・Q・E）またはコントローラー";
+    document.querySelector(".hudHelp").textContent="1P vs CPU　キャラ別2キー同時押しでオートコンボ / 通常操作もそのまま使用可能";
   }
 }
 
+function autoComboChordReady(f,code){
+  const cfg=AUTO_COMBOS[f.key];
+  if(!cfg)return false;
+  return cfg.pairs.some(pair=>pair.includes(code)&&pair.every(k=>!!keys[k]));
+}
+function refundCancelledSpecial(f){
+  if(!f.attack||!f.attack.isSpecial)return;
+  if(f.attack.isUltra){
+    f.meter=Math.min(200,f.meter+200);
+    f.ultraUsed=Math.max(0,f.ultraUsed-1);
+  }else{
+    f.meter=Math.min(200,f.meter+100);
+    f.specialUsed=Math.max(0,f.specialUsed-1);
+  }
+  if(specialBanner&&specialBanner.slot===f.slot)specialBanner=null;
+}
+function startAutoComboStep(f){
+  const ac=f.autoCombo;
+  if(!ac)return;
+  if(ac.step>=ac.sequence.length){
+    f.autoCombo=null;
+    f.autoComboFlash=24;
+    return;
+  }
+  const moveIndex=ac.sequence[ac.step];
+  const finalStep=ac.step===ac.sequence.length-1;
+  const base=f.c.moves[moveIndex];
+  const move={...base,idx:moveIndex,isSpecial:false,isAutoCombo:true,autoStep:ac.step,autoFinal:finalStep};
+  // Fast cancel timing, generous range, and reduced intermediate knockback make the chain reliable.
+  move.startup=Math.max(2,Math.ceil(move.startup*.62));
+  move.active=Math.max(3,move.active||3);
+  move.recovery=Math.max(2,Math.ceil(move.recovery*(finalStep?.55:.28)));
+  if(move.range!==undefined)move.range+=finalStep?7:13;
+  if(!finalStep){
+    move.knock=Math.min(move.knock||3,2.1);
+    move.lift=Math.min(move.lift||1.8,1.45);
+    if(move.dash)move.dash=Math.min(move.dash,4.1);
+  }else{
+    move.knock=(move.knock||4)*1.12;
+    move.lift=(move.lift||2.4)*1.08;
+  }
+  f.attack=move;
+  f.attackFrame=0;f.hitDone=false;f.hitCooldown=0;f.vx*=.25;
+}
+function startAutoCombo(f){
+  const cfg=AUTO_COMBOS[f.key];
+  if(!cfg||f.cpu||f.ko||f.hitstun>0||f.autoCombo)return false;
+
+  // If the first key already began a move, allow the second simultaneous key to convert
+  // only the very beginning of that move into the auto combo. Specials are refunded.
+  if(f.attack){
+    if(f.attackFrame>8||f.attack.kind==="throw")return false;
+    refundCancelledSpecial(f);
+    f.attack=null;f.attackFrame=0;f.hitDone=false;f.hitCooldown=0;
+  }
+
+  // Up+side can momentarily begin a jump before the side key arrives; cancel that tiny hop.
+  if(Math.abs(f.y-(GROUND-f.h))<3){f.y=GROUND-f.h;f.vy=0;f.onGround=true;}
+  f.guard=false;
+  f.autoCombo={sequence:cfg.sequence.slice(),step:0,label:cfg.label};
+  f.autoComboFlash=48;
+  spark(f.x,f.y+18,"aqua",12);
+  beep(720,.05,"triangle",.025,0,980);
+  startAutoComboStep(f);
+  return true;
+}
 function onPress(code){
   if(gameState!=="fight")return;
   fighters.forEach((f,i)=>{
     if(f.cpu)return;
     const c=keyboardControlsFor(i);
     if(!c)return;
+
+    // Character-specific simultaneous input takes priority over the individual key actions.
+    if(autoComboChordReady(f,code)&&startAutoCombo(f))return;
+
     if(code===c.jump&&f.onGround&&!f.attack&&f.hitstun<=0&&!f.guard){f.vy=-f.c.jump;f.onGround=false}
 
     if(code===keyboardThrowFor(i)){
@@ -625,7 +714,7 @@ function onPress(code){
   });
 }
 function startAttack(f,idx){
-  if(f.attack||f.hitstun>0||f.guard||f.ko)return;
+  if(f.attack||f.hitstun>0||f.guard||f.ko||f.autoCombo)return;
   const move={...f.c.moves[idx],idx,isSpecial:false};
   if(f.speedBuff>0){
     move.startup=Math.max(1,Math.ceil(move.startup/3));
@@ -636,7 +725,7 @@ function startAttack(f,idx){
   f.attackFrame=0;f.hitDone=false;f.hitCooldown=0;f.vx*=.35;
 }
 function startThrow(f){
-  if(f.hitstun>0||f.guard||f.ko)return;
+  if(f.hitstun>0||f.guard||f.ko||f.autoCombo)return;
   // The first button may already have started a normal move; a quick second button
   // converts that early startup into a throw.
   if(f.attack){
@@ -652,7 +741,7 @@ function startThrow(f){
   f.attackFrame=0;f.hitDone=false;f.hitCooldown=0;f.vx*=.25;
 }
 function startSpecial(f){
-  if(f.attack||f.hitstun>0||f.guard||f.ko||f.meter<100)return;
+  if(f.attack||f.hitstun>0||f.guard||f.ko||f.autoCombo||f.meter<100)return;
   f.meter-=100;
   f.specialUsed++;
   f.attack={...f.c.special,idx:-1,isSpecial:true,isUltra:false};
@@ -673,7 +762,7 @@ function startSpecial(f){
   }
 }
 function startUltra(f){
-  if(f.attack||f.hitstun>0||f.guard||f.ko||f.meter<200)return;
+  if(f.attack||f.hitstun>0||f.guard||f.ko||f.autoCombo||f.meter<200)return;
   f.meter-=200;
   f.ultraUsed++;
   const u=ULTRAS[f.key];
@@ -807,10 +896,16 @@ function applyHit(attacker,target,damage,knock,lift=2.2,guardBreak=false){
     playHitSE(d,false);
     hitStopFrames=Math.max(hitStopFrames,Math.min(8,3+Math.floor(d*.18)));
     slowMoFrames=Math.max(slowMoFrames,Math.min(12,4+Math.floor(d*.14)));
+    if(attacker.attack&&attacker.attack.isAutoCombo&&!attacker.attack.autoFinal){
+      target.hitstun=Math.max(target.hitstun,20);
+    }
   }
   target.hp=Math.max(0,target.hp-d);
   const dir=attacker.x<target.x?1:-1;
   target.vx=dir*(k/target.c.mass);target.vy=-lift/target.c.mass;target.flash=6;
+  if(!guarded&&attacker.attack&&attacker.attack.isAutoCombo&&!attacker.attack.autoFinal){
+    target.vx*=.42;target.vy*=.55;
+  }
   screenShake=Math.max(screenShake,Math.min(10,1+d*.17));
   if(!guarded&&attacker.attack&&attacker.attack.isUltra){
     ultraHitBg={key:attacker.key,timer:18,max:18};
@@ -826,6 +921,17 @@ function updateAttack(f,other){
   f.attackFrame++;
   if(f.hitCooldown>0)f.hitCooldown--;
   const phase=attackPhase(f);
+
+  if(a.isAutoCombo){
+    const dx=other.x-f.x;
+    const dir=dx===0?f.facing:(dx<0?-1:1);
+    f.facing=dir;
+    // Small pursuit assist only during the auto combo so each next normal stays in range.
+    if((phase==="startup"||phase==="recovery")&&Math.abs(dx)>38){
+      const step=Math.min(a.autoFinal?2.2:3.6,Math.max(0,Math.abs(dx)-38));
+      f.x+=dir*step;
+    }
+  }
 
   if(phase==="active"){
     if(a.invuln)f.invuln=2;
@@ -1113,7 +1219,13 @@ function updateAttack(f,other){
       const ob=hurtBox(other),hb={x:f.x-48,y:f.y-12,w:96,h:66};
       if(rectsHit(hb.x,hb.y,hb.w,hb.h,ob.x,ob.y,ob.w,ob.h))applyHit(f,other,a.kind==="hellTrain"?16:11,a.kind==="hellTrain"?9.0:7.2,a.kind==="hellTrain"?4.8:4.0);
     }
+    const continueAuto=!!(a.isAutoCombo&&f.autoCombo);
     f.attack=null;f.attackFrame=0;f.hitDone=false;f.hitCooldown=0;
+    if(continueAuto){
+      f.autoCombo.step++;
+      if(f.autoCombo.step<f.autoCombo.sequence.length)startAutoComboStep(f);
+      else{f.autoCombo=null;f.autoComboFlash=28;}
+    }
   }
 }
 
@@ -1238,6 +1350,7 @@ function updateFighter(f,other,i){
   if(f.hitstun>0)f.hitstun--;
   if(f.speedBuff>0)f.speedBuff--;
   if(f.ultraBuff>0)f.ultraBuff--;
+  if(f.autoComboFlash>0)f.autoComboFlash--;
   updatePoison(f);
   if(f.comboTimer>0){f.comboTimer--;if(f.comboTimer<=0)f.combo=0}
 
@@ -1261,7 +1374,8 @@ function updateFighter(f,other,i){
     }
   }
 
-  if(f.ko){f.guard=false;f.vx*=.96}
+  if(f.ko){f.guard=false;f.vx*=.96;f.autoCombo=null}
+  if(f.hitstun>0&&f.autoCombo&&!f.attack)f.autoCombo=null;
   updateAttack(f,other);
 
   if(!f.onGround)f.vy+=.48;
@@ -2176,13 +2290,20 @@ function drawSpecialBanner(){
 }
 
 function drawCombo(f){
-  if(f.combo<2||f.comboTimer<=0)return;
   const x=f.slot===0?58:W-58;
-  ctx.textAlign="center";
-  ctx.fillStyle="#fff";ctx.font="bold 18px monospace";
-  ctx.fillText(`${f.combo} HIT`,x,62);
-  ctx.fillStyle="#ffd96a";ctx.font="bold 9px monospace";
-  ctx.fillText("COMBO!",x,73);
+  if(f.combo>=2&&f.comboTimer>0){
+    ctx.textAlign="center";
+    ctx.fillStyle="#fff";ctx.font="bold 18px monospace";
+    ctx.fillText(`${f.combo} HIT`,x,62);
+    ctx.fillStyle="#ffd96a";ctx.font="bold 9px monospace";
+    ctx.fillText("COMBO!",x,73);
+  }
+  if(f.autoCombo||f.autoComboFlash>0){
+    ctx.textAlign="center";
+    ctx.fillStyle="#bff7ff";ctx.font="bold 8px monospace";
+    const step=f.autoCombo?Math.min(5,f.autoCombo.step+1):5;
+    ctx.fillText(`⚡ AUTO COMBO ${step}/5`,x,84);
+  }
 }
 function drawRoundHud(){
   ctx.save();
