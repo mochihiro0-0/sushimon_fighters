@@ -1,13 +1,177 @@
-This  is  Japanese sushi  monster  game.
-This  is a fighting game.
-A normal punch＝z,x,c,v,b
-The content displayed varies depending on each zxcvb.
-Special Move＝q
-You can use your special move once the yellow bar at the top fills up.
-Super special move＝e
-When the yellow gauge turns red, you can use a super special move.
-Movement up, down, left, and right＝↑↓→←
-You win by reducing your opponent's HP to zero.
-However, if your HP drops to zero, you lose.
-Attacking fills the yellow gauge.
-The CPU is a tough opponent, so good luck.
+# 宇宙戦士デルタ・ナプラ
+
+手や腕で「△デルタ」「▽ナプラ」を作り、PCとスマートフォンで協力して3つの課題へ挑戦するWebカメラゲームです。人物はMediaPipe Image Segmenterでリアルタイムに切り抜かれ、指定の宇宙画像へ合成されます。
+
+## まず知っておくこと
+
+- カメラ映像・入力した名前・認識結果を録画、保存する処理はありません。
+- ポーズ認識は各端末のブラウザ内で行います。
+- 人物分離と表情認識も各端末のブラウザ内で行います。
+- カメラは `https://` で始まるページ、または開発用の `localhost` でのみ利用できます。
+- GitHub PagesはHTTPSなので、公開後はカメラを利用できます。
+- 外部の読み込みがあるため、ゲームにはインターネット接続が必要です。
+- 大元PCとスマホの通信にはWebRTCを使います。環境によっては、学校・会社・一部携帯回線の通信制限で接続できない場合があります。
+
+## ファイル構成
+
+| ファイル | 内容 |
+|---|---|
+| `index.html` | 最初に開く7ページのチュートリアル |
+| `game.html` | メニュー、ルーム、カメラ、通信を管理するゲーム本体 |
+| `mission-meteor.html` | 課題1：二人で大きな▽を作り隕石を止める |
+| `mission-kaiju.html` | 課題2：タイミングよく指定された形を作り怪獣を倒す |
+| `mission-rescue.html` | 課題3：設定された大きさの△で落下する人を救う |
+| `style.css` | チュートリアルとゲームの共通デザイン |
+| `script.js` | カメラ、MediaPipe、PeerJS、音声、進行処理 |
+| `assets/space-background.jpg` | 人物の後ろへ合成する宇宙背景画像 |
+| `.nojekyll` | GitHub Pagesでそのまま静的ファイルとして公開する指定 |
+
+課題はそれぞれ別のHTMLです。`game.html`の中で課題HTMLだけを切り替えるため、課題が変わってもスマホとの通信は切れません。
+
+## GitHub Pagesへ掲載する手順
+
+1. このZIPを展開します。
+2. GitHubで新しいリポジトリを作ります。
+3. 展開したファイルを、フォルダーごとではなく**ファイルがリポジトリ直下に並ぶ形**でアップロードします。
+4. GitHubのリポジトリ上部にある `Settings` をクリックします。
+5. 左側の `Code and automation` にある `Pages` をクリックします。
+6. `Build and deployment` → `Source` で `Deploy from a branch` を選びます。
+7. `Branch` で `main`、右側で `/(root)` を選び、`Save` をクリックします。
+8. 数分待ち、Pages画面に表示されたURLを開きます。
+
+`index.html`がリポジトリ直下にあるため、公開URLを開くとチュートリアルから自動的に始まります。
+
+GitHub公式説明：<https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site>
+
+## 操作方法
+
+### 大元のPC
+
+1. 公開URLをChromeまたはEdgeで開きます。
+2. チュートリアルを進め、最後に「ゲームを始める」を押します。
+3. 「大元のPC」→「参加ルームを作る」を押します。
+4. カメラの確認が表示されたら「許可」を押します。
+5. QRコードが表示されたら、参加者にスマートフォンで読み取ってもらいます。
+6. 参加者の映像が一覧へ追加されたら「出動する」を押します。
+
+### スマートフォン参加者
+
+1. 大元PCのQRコードを標準カメラで読み取ります。
+2. 表示名を12文字以内で入力します。
+3. 「カメラを起動して参加」を押し、カメラを許可します。
+4. PC画面の指令に合わせて、両手または腕で△・▽を作ります。
+
+### ポーズ
+
+- **△デルタ**：両手の人差し指を上で合わせ、親指を下で合わせます。または、腕を頭上へ上げて手首を近づけます。
+- **▽ナプラ**：両手の親指側を下、人差し指側を上にして三角形を作ります。または、ひじを左右に開いて手首を下で近づけます。
+- 全身を使う場合は、画面の案内どおりカメラから約1.5m離れてください。
+
+認識には4フレーム分の安定を必要とし、約0.9秒の連続発動防止時間があります。照明が暗い場合や、腕・指先が画面外へ出ている場合は認識しにくくなります。
+
+### キーボードと画面ボタン
+
+認識しないときも、同じ操作を試せます。
+
+| 操作 | キー | 音 |
+|---|---|---|
+| △デルタ | `D` または `↑` | 太鼓 |
+| ▽ナプラ | `N` または `↓` | ラッパ |
+| 音のオン・オフ | `M` | ― |
+| ヘルプ | `H` または `?` | ― |
+| 協力成立・成功 | 自動 | 鈴 |
+
+### 表情認識
+
+Face Landmarkerはポーズ認識と同時に動きます。表情はミッションの△・▽判定には使わず、音と演出を追加します。
+
+| 表情 | 音 |
+|---|---|
+| 笑顔 | 太鼓 |
+| 口を開く | ラッパ |
+| 眉を上げる | 鈴 |
+
+同じ表情を続けている間は1回だけ鳴ります。いったん普通の表情へ戻してから、もう一度表情を作ると再び鳴ります。スマホで認識した表情結果は大元PCへ送られ、大元PCでも同じ音を再生します。
+
+## 宇宙背景への人物合成
+
+- Selfie Segmenterの横長軽量モデルで、背景と人物を分離します。
+- 人物の信頼度マスクへ段階補正とぼかしをかけ、輪郭のギザつきを減らします。
+- スマホでは合成解像度を約360px幅、人物分離を約5回/秒に抑えます。
+- PCでは合成解像度を最大640px幅、人物分離を約8回/秒にします。
+- 手・姿勢・表情・人物分離は処理時刻をずらし、同じ瞬間に集中しないようにしています。
+- `canvas.captureStream()`に対応するスマホでは、宇宙背景へ合成した映像を大元PCへ送信します。未対応端末では元のカメラ映像を送信します。
+
+背景画像を変更する場合は、同じ名前の `assets/space-background.jpg` と差し替えてください。縦横比4:3のJPEGまたはPNGが扱いやすいです。今回の画像はユーザー提供の「宇宙の果て【フリー素材】」を使用しています。GitHubで一般公開する前に、念のため元の配布ページの利用条件・クレジット表記条件をご確認ください。
+
+大きい形のテストは `Shift` を押しながら `D` または `N` を押せます。ただし、隕石の課題は二人以上の別々の参加者が必要です。
+
+## 課題と終了条件
+
+1. **隕石を止めろ**：二人以上が▽ナプラを作り、大きさと協力ボーナスで出力72%以上を目指します。
+2. **宇宙怪獣を倒せ**：照準が緑色になり「いまだ！」と出た約2秒間に、表示された△または▽を作ります。
+3. **落下する人を救え**：△デルタの大きさを、黄色い目標円へ近づけます。
+
+各課題は10秒です。成功すると次の課題へ進み、失敗すると連続成功数が0へ戻ります。3課題を連続成功すると「地球はこうして救われた」のエンディングになります。
+
+## 外部サービス・ライブラリ
+
+このアプリはAPIキーを使いません。次の公開データをインターネットから読み込みます。
+
+- **MediaPipe Tasks Vision**：各端末内で手・姿勢・表情の特徴点と人物領域を検出します。Image Segmenterには軽量なSelfie Segmenter Landscape、表情にはFace Landmarkerを使用します。JavaScript本体はjsDelivr、学習済みモデルはGoogleの配布先から読み込みます。
+- **PeerJS 1.5.5**：WebRTCの接続を簡単にします。標準設定では無料のPeerJS Cloudを、端末同士が接続先を見つけるためのシグナリングに利用します。
+- **QRCode.js 1.0.0**：参加URLのQRコードをブラウザ内で生成します。QRコード生成用APIへURLを送信しません。
+
+PeerJS Cloudは映像を保存する場所ではありません。映像は原則として端末間で直接送られます。ただし、PeerJS Cloudは接続準備のための情報を中継します。また、このアプリには独自TURNサーバーを設定していないため、厳しいネットワーク制限下では映像接続が成立しないことがあります。
+
+参考：
+
+- MediaPipe Hand Landmarker：<https://ai.google.dev/edge/mediapipe/solutions/vision/hand_landmarker/web_js>
+- MediaPipe Pose Landmarker：<https://ai.google.dev/edge/mediapipe/solutions/vision/pose_landmarker/web_js>
+- MediaPipe Image Segmenter：<https://ai.google.dev/edge/mediapipe/solutions/vision/image_segmenter/web_js>
+- MediaPipe Face Landmarker：<https://ai.google.dev/edge/mediapipe/solutions/vision/face_landmarker/web_js>
+- PeerJS：<https://peerjs.com/client/getting-started>
+
+## カメラが動かないとき
+
+### 「カメラが許可されていません」と表示される
+
+1. ChromeまたはEdgeのアドレス欄の左にある鍵・調整・カメラの印をクリックします。
+2. `カメラ` を `許可` に変更します。
+3. ページを再読み込みします。
+
+### 「カメラを開始できません」と表示される
+
+1. Zoom、Teams、カメラアプリなどを終了します。
+2. 別のブラウザタブで同じカメラを使用していないか確認します。
+3. ページを再読み込みします。
+
+### スマホがPCへつながらない
+
+1. 大元PCでルーム画面を開いたままにします。
+2. PCとスマホの両方がインターネットへ接続されているか確認します。
+3. QRコードを読み直します。
+4. 学校・会社のWi-Fiなら、スマホを携帯回線へ切り替えて試します。
+
+## PCだけで動作確認する方法
+
+注意：`index.html`をダブルクリックして `file://` で開くと、ブラウザの安全制限によりカメラを利用できません。
+
+Pythonが入っているPCでは、このフォルダー内でターミナルを開き、次を実行します。
+
+```bash
+python -m http.server 8000
+```
+
+その後、ChromeまたはEdgeで <http://localhost:8000/> を開きます。停止するときは、ターミナルで `Ctrl` + `C` を押します。
+
+## 後から調整しやすい場所
+
+- 色：`style.css`冒頭の `:root`
+- 課題の順番：`script.js`冒頭の `missionFiles`
+- 制限時間：各 `mission-*.html` 内の `setTimeout(..., 10000)` と、`script.js`内の10秒表示
+- 認識の厳しさ：`script.js`の `detectHandTriangle`、`detectArmTriangle`、`stabilizeRecognition`
+- 隕石の必要出力：`mission-meteor.html`の `maxPower >= 72`
+- 救助の目標サイズ：`mission-rescue.html`の `targetSize` と `tolerance`
+
+コード内には、変更箇所を探しやすいよう日本語コメントを入れています。

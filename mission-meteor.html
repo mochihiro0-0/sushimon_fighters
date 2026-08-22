@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ミッション1｜隕石を止めろ</title>
+  <style>
+    :root{font-family:"BIZ UDPGothic","Yu Gothic",sans-serif;color:#f7fbff;background:#030919;color-scheme:dark}*{box-sizing:border-box}body{margin:0;min-height:100vh;overflow:hidden;background:radial-gradient(circle at 70% 18%,#45214a 0,transparent 34%),linear-gradient(#071a38,#030817)}.arena{position:relative;display:grid;height:100vh;place-items:center;overflow:hidden}.stars{position:absolute;inset:0;background-image:radial-gradient(circle,#fff 0 1px,transparent 1.3px);background-size:83px 71px;opacity:.2}.mission-copy{position:absolute;z-index:5;top:clamp(12px,3vw,28px);left:clamp(14px,3vw,32px);max-width:62%}.tag{margin:0;color:#ffd84a;font-size:clamp(.6rem,1.6vw,.78rem);font-weight:900;letter-spacing:.16em}.mission-copy h1{margin:.2rem 0;font-size:clamp(1.35rem,5vw,3.2rem);line-height:1.05;text-shadow:0 0 18px #54ecff88}.mission-copy p{margin:.3rem 0;color:#bed2ea;font-size:clamp(.7rem,1.8vw,.95rem)}.meteor{position:absolute;right:7%;top:14%;width:clamp(90px,22vw,220px);aspect-ratio:1;border-radius:48% 52% 46% 54%;background:radial-gradient(circle at 32% 27%,#ffcf83 0 5%,#9a4e43 13%,#542a3d 42%,#221729 72%);box-shadow:-22px 18px 45px #ff775455,0 0 22px #ff8f5a77;animation:threat 1.2s ease-in-out infinite alternate}.meteor:before,.meteor:after{position:absolute;border-radius:50%;background:#2d1d2b;box-shadow:inset 4px 3px 6px #120d19;content:""}.meteor:before{width:22%;height:18%;top:22%;left:18%}.meteor:after{width:15%;height:13%;right:20%;bottom:25%}.trail{position:absolute;right:15%;top:-8%;width:38%;height:21%;background:linear-gradient(110deg,transparent,#ff9c6466,#fff2c4aa);filter:blur(12px);transform:rotate(-32deg)}.circle{position:absolute;left:50%;top:58%;width:min(56vw,340px);aspect-ratio:1;border:3px solid #ff4fd8;border-radius:50%;box-shadow:0 0 22px #ff4fd8,inset 0 0 25px #ff4fd855;transform:translate(-50%,-50%) scale(.45);opacity:.35;transition:.2s}.circle:before,.circle:after{position:absolute;inset:10%;border:2px dashed #54ecff;border-radius:50%;content:"";animation:spin 5s linear infinite}.circle:after{inset:23%;border-style:solid;border-color:#ffd84a;animation-direction:reverse}.glyph{position:absolute;inset:0;display:grid;place-items:center;color:#ff4fd8;font:900 min(34vw,210px)/1 sans-serif;text-shadow:0 0 26px currentColor}.power{position:absolute;z-index:6;bottom:7%;width:min(620px,82%);text-align:center}.bar{height:16px;overflow:hidden;border:1px solid #67cfff66;border-radius:99px;background:#07142c}.fill{height:100%;width:0;background:linear-gradient(90deg,#54ecff,#ff4fd8,#ffd84a);box-shadow:0 0 18px #54ecff;transition:width .2s}.power-row{display:flex;justify-content:space-between;margin-top:.45rem;color:#afc4dd;font-size:clamp(.68rem,2vw,.85rem)}.power-row b{color:#fff}.team-warning{margin:.45rem 0 0;color:#ffd84a;font-size:clamp(.72rem,2vw,.9rem);font-weight:900}.flash{position:absolute;z-index:10;inset:0;background:white;opacity:0;pointer-events:none}.flash.on{animation:flash .45s ease}.result{position:absolute;z-index:20;inset:0;display:grid;place-items:center;background:#020715dd;text-align:center}.result[hidden]{display:none}.result strong{font-size:clamp(2.1rem,9vw,5.5rem);text-shadow:0 0 25px currentColor}.result.success strong{color:#54ecff}.result.fail strong{color:#ff647c}.result p{color:#d5e5f6}@keyframes spin{to{transform:rotate(360deg)}}@keyframes threat{to{transform:translate(-10px,9px) rotate(3deg)}}@keyframes flash{50%{opacity:.95}}@media(max-height:430px){.circle{width:38vh}.power{bottom:3%}.meteor{width:25vh}.mission-copy h1{font-size:1.3rem}}
+  </style>
+</head>
+<body>
+  <main class="arena">
+    <div class="stars"></div><div class="trail"></div><div class="meteor"></div>
+    <section class="mission-copy"><p class="tag">MISSION 01 / CO-OP</p><h1>隕石を止めろ！</h1><p>二人以上で、できるだけ大きな<strong>▽ナプラ</strong>を作れ。</p></section>
+    <div class="circle" id="circle"><span class="glyph">▽</span></div>
+    <section class="power"><div class="bar"><div class="fill" id="fill"></div></div><div class="power-row"><span>魔力出力</span><b id="powerText">0%</b><span>戦士 <b id="heroCount">0</b>/2</span></div><p class="team-warning" id="teamWarning">あと2人のナプラが必要だ！</p></section>
+    <div class="flash" id="flash"></div><section class="result" id="result" hidden><div><strong id="resultTitle"></strong><p id="resultText"></p></div></section>
+  </main>
+  <script>
+    // このHTMLだけが「大きさ＋二人協力」の合否を判定します。
+    const contributors = new Set(); let maxPower = 0; let ended = false; let timer;
+    const circle = document.getElementById('circle'), fill = document.getElementById('fill');
+    function cast(data){
+      if(ended || data.gesture !== 'napla') return;
+      contributors.add(data.participantId || 'local');
+      const teamBonus = Math.min(22, Math.max(0, contributors.size - 1) * 22);
+      maxPower = Math.max(maxPower, Math.min(100, Math.round((data.size || .45) * 112 + teamBonus)));
+      fill.style.width = `${maxPower}%`; document.getElementById('powerText').textContent = `${maxPower}%`;
+      document.getElementById('heroCount').textContent = Math.min(2, contributors.size);
+      document.getElementById('teamWarning').textContent = contributors.size >= 2 ? '協力成立！そのまま形を大きく！' : 'あと1人のナプラが必要だ！';
+      circle.style.opacity = String(.35 + maxPower / 160); circle.style.transform = `translate(-50%,-50%) scale(${.45 + maxPower/180})`;
+      document.getElementById('flash').classList.remove('on'); void document.body.offsetWidth; document.getElementById('flash').classList.add('on');
+    }
+    function finish(){
+      if(ended) return; ended = true; const success = contributors.size >= 2 && maxPower >= 72;
+      const box=document.getElementById('result'); box.hidden=false; box.className=`result ${success?'success':'fail'}`;
+      document.getElementById('resultTitle').textContent=success?'防衛成功！':'隕石接近！';
+      document.getElementById('resultText').textContent=success?'二人のナプラが隕石を消し飛ばした。':contributors.size<2?'この課題には二人以上の力が必要だ。':'もっと大きなナプラを作ろう。';
+      parent.postMessage({type:'mission-result',success,score:maxPower,reason:contributors.size<2?'need-two':'size'},'*');
+    }
+    addEventListener('message',e=>{const d=e.data||{};if(d.type==='mission-start'){clearTimeout(timer);timer=setTimeout(finish,10000)}if(d.type==='gesture')cast(d)});
+    parent.postMessage({type:'mission-ready',mission:'meteor',title:'隕石を止めろ！',instruction:'二人以上で、大きな▽ナプラを作れ'},'*');
+  </script>
+</body>
+</html>
+
